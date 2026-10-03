@@ -16,29 +16,106 @@ OUTPUT_DIR = Path("output")
 
 
 def read_encounters(data_path):
-    """TODO: describe what one usable encounter looks like.
-
-    Give back two values: the list of usable encounters, and how many data
-    rows you skipped. `main()` unpacks them the way the lecture unpacks a
-    tuple, with two names on the left of the `=`.
+    """TODO: Return usable encounter dictionaries and the skipped-row count..
     """
-    # TODO: read the rows and skip the header line.
-    # TODO: keep a row only when it has three fields, int() can read the
-    #       systolic field, and the reading is plausible.
-    # TODO: count every other data row as skipped, the blank line included,
-    #       and print one line per skipped row so you can see what dropped out.
-    # TODO: end with `return encounters, skipped`.
+    encounters = []
+    skipped = 0
+
+    with open(data_path, "r", encoding="utf-8") as file:
+        rows = file.readlines()
+
+    for row in rows[1:]:
+        row = row.strip()
+
+        if not row:
+            skipped += 1
+            print("Skipping a blank row.")
+            continue
+
+        fields = row.split(",")
+
+        if len(fields) != 3:
+            skipped += 1
+            print(f"Skipping a row with the wrong number of fields: {row}")
+            continue
+
+        patient_id, visit_date, raw_systolic = fields
+
+        try:
+            systolic = int(raw_systolic)
+        except ValueError:
+            skipped += 1
+            print(f"Skipping a row with a non-integer reading: {row}")
+            continue
+
+        if not 60 <= systolic <= 250:
+            skipped += 1
+            print(f"Skipping a row with an out-of-range reading: {row}")
+            continue
+
+        encounter = {
+            "patient_id": patient_id,
+            "visit_date": visit_date,
+            "systolic": systolic,
+        }
+
+        encounters.append(encounter)
+
+    return encounters, skipped
     pass
 
 
 def main():
-    """TODO: describe the two artifacts this writes."""
+    """Write a systolic summary and a patient follow-up list."""
     encounters, skipped = read_encounters(DATA_PATH)
 
-    # TODO: build the six report lines and write them to output/vitals_report.txt.
-    # TODO: read the file back and print it, so you can see what was saved.
-    # TODO: choose your follow-up cutoff, then write output/followup_list.txt
-    #       with the Cutoff line, the Reason line, and one patient ID per line.
+    readings = systolic_readings(encounters)
+    average = mean_systolic(readings)
+
+    if average is None:
+        raise ValueError("No usable readings were found.")
+
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    report_lines = [
+        f"Usable encounters: {len(encounters)}",
+        f"Skipped rows: {skipped}",
+        f"Patients seen: {count_patients(encounters)}",
+        f"Mean systolic: {average:.2f} mmHg",
+        f"Highest systolic: {max(readings)} mmHg",
+        f"Lowest systolic: {min(readings)} mmHg",
+    ]
+
+    report_path = OUTPUT_DIR / "vitals_report.txt"
+
+    with open(report_path, "w", encoding="utf-8") as file:
+        file.write("\n".join(report_lines) + "\n")
+
+    with open(report_path, "r", encoding="utf-8") as file:
+        saved_report = file.read()
+
+    print(saved_report, end="")
+
+    cutoff = 140
+    reason = (
+        "For this exercise, I chose 140 to prioritize higher readings "
+        "while keeping the callback list manageable."
+    )
+
+    followup_ids = patients_at_or_above(encounters, cutoff)
+
+    followup_lines = [
+        f"Cutoff: {cutoff} mmHg",
+        f"Reason: {reason}",
+    ]
+
+    for patient_id in followup_ids:
+        followup_lines.append(patient_id)
+
+    followup_path = OUTPUT_DIR / "followup_list.txt"
+
+    with open(followup_path, "w", encoding="utf-8") as file:
+        file.write("\n".join(followup_lines) + "\n")
 
 
 if __name__ == "__main__":
